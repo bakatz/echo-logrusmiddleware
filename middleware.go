@@ -31,16 +31,13 @@ func (l Logger) Level() log.Lvl {
 	return log.OFF
 }
 
-func (l Logger) SetPrefix(s string) {
-	// TODO
-}
+// SetHeader is a stub to satisfy the Logger interface
+// It's controlled by logrus
+func (l Logger) SetHeader(_ string) {}
 
-func (l Logger) Prefix() string {
-	// TODO.  Is this even valid?  I'm not sure it can be translated since
-	// logrus uses a Formatter interface.  Which seems to me to probably be
-	// a better way to do it.
-	return ""
-}
+func (l Logger) SetPrefix(s string) {}
+
+func (l Logger) Prefix() string { return "" }
 
 func (l Logger) SetLevel(lvl log.Lvl) {
 	switch lvl {
