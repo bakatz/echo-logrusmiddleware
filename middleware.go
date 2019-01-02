@@ -138,7 +138,7 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 
 	stop := time.Now()
 	fieldsMap := map[string]interface{}{
-		"time_rfc3339": time.Now().Format(time.RFC3339),
+		"time_rfc3339": time.Now().UTC().Format(time.RFC3339),
 		"remote_ip":    c.RealIP(),
 		"host":         req.Host,
 		"uri":          req.RequestURI,
