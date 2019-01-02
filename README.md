@@ -38,10 +38,10 @@ func main() {
 
 	// to define your own config
 	config := &logrusmiddleware.Config{
-		IncludeRequestBodies = true,
-		IncludeResponseBodies = true,
+		IncludeRequestBodies:  true,
+		IncludeResponseBodies: true,
 	}
-	e.Use(logrusmiddleware.HookWithConfig(config))
+	e.Use(logrusmiddleware.HookWithConfig(*config))
 
 	// do the rest of your echo setup, routes, listen on server, etc..
 }
