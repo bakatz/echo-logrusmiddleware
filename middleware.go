@@ -101,6 +101,7 @@ func (l Logger) Panicj(j log.JSON) {
 }
 
 func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Config) error {
+	start := time.Now()
 	req := c.Request()
 	res := c.Response()
 
@@ -121,11 +122,9 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 		res.Writer = writer
 	}
 
-	start := time.Now()
 	if err := next(c); err != nil {
 		c.Error(err)
 	}
-	stop := time.Now()
 
 	p := req.URL.Path
 	if p == "" {
@@ -137,25 +136,25 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 		bytesIn = "0"
 	}
 
+	stop := time.Now()
 	fieldsMap := map[string]interface{}{
-		"time_rfc3339":  time.Now().Format(time.RFC3339),
-		"remote_ip":     c.RealIP(),
-		"host":          req.Host,
-		"uri":           req.RequestURI,
-		"method":        req.Method,
-		"path":          p,
-		"referer":       req.Referer(),
-		"user_agent":    req.UserAgent(),
-		"status":        res.Status,
-		"latency":       strconv.FormatInt(stop.Sub(start).Nanoseconds()/1000, 10),
-		"latency_human": stop.Sub(start).String(),
-		"bytes_in":      bytesIn,
-		"bytes_out":     strconv.FormatInt(res.Size, 10),
-		"request_id":    res.Header().Get(echo.HeaderXRequestID),
+		"time_rfc3339": time.Now().Format(time.RFC3339),
+		"remote_ip":    c.RealIP(),
+		"host":         req.Host,
+		"uri":          req.RequestURI,
+		"method":       req.Method,
+		"path":         p,
+		"referer":      req.Referer(),
+		"user_agent":   req.UserAgent(),
+		"status":       res.Status,
+		"latency":      strconv.FormatInt(stop.Sub(start).Nanoseconds()/1000, 10),
+		"bytes_in":     bytesIn,
+		"bytes_out":    strconv.FormatInt(res.Size, 10),
+		"request_id":   res.Header().Get(echo.HeaderXRequestID),
 	}
 
 	if config.IncludeRequestBodies {
-		fieldsMap["request_body"] = reqBody
+		fieldsMap["request_body"] = string(reqBody)
 	}
 
 	if config.IncludeResponseBodies {
