@@ -1,7 +1,12 @@
 package logrusmiddleware
 
 import (
+	"bufio"
+	"bytes"
 	"io"
+	"io/ioutil"
+	"net"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -9,6 +14,11 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
 )
+
+type Config struct {
+	IncludeRequestBodies  bool
+	IncludeResponseBodies bool
+}
 
 type Logger struct {
 	*logrus.Logger
@@ -35,7 +45,7 @@ func (l Logger) Level() log.Lvl {
 // It's controlled by logrus
 func (l Logger) SetHeader(_ string) {}
 
-func (l Logger) SetPrefix(s string) {}
+func (l Logger) SetPrefix(_ string) {}
 
 func (l Logger) Prefix() string { return "" }
 
@@ -90,9 +100,27 @@ func (l Logger) Panicj(j log.JSON) {
 	logrus.WithFields(logrus.Fields(j)).Panic()
 }
 
-func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc) error {
+func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Config) error {
 	req := c.Request()
 	res := c.Response()
+
+	// Request
+	reqBody := []byte{}
+	if config.IncludeRequestBodies {
+		if req.Body != nil { // Read
+			reqBody, _ = ioutil.ReadAll(req.Body)
+		}
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody)) // Reset
+	}
+
+	// Response
+	resBody := new(bytes.Buffer)
+	if config.IncludeResponseBodies {
+		mw := io.MultiWriter(res.Writer, resBody)
+		writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response().Writer}
+		res.Writer = writer
+	}
+
 	start := time.Now()
 	if err := next(c); err != nil {
 		c.Error(err)
@@ -109,7 +137,7 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc) error {
 		bytesIn = "0"
 	}
 
-	logrus.WithFields(map[string]interface{}{
+	fieldsMap := map[string]interface{}{
 		"time_rfc3339":  time.Now().Format(time.RFC3339),
 		"remote_ip":     c.RealIP(),
 		"host":          req.Host,
@@ -124,17 +152,58 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc) error {
 		"bytes_in":      bytesIn,
 		"bytes_out":     strconv.FormatInt(res.Size, 10),
 		"request_id":    res.Header().Get(echo.HeaderXRequestID),
-	}).Info("Handled request")
+	}
+
+	if config.IncludeRequestBodies {
+		fieldsMap["request_body"] = reqBody
+	}
+
+	if config.IncludeResponseBodies {
+		fieldsMap["response_body"] = resBody
+	}
+
+	logrus.WithFields(fieldsMap).Info("Handled request")
 
 	return nil
 }
 
-func logger(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		return logrusMiddlewareHandler(c, next)
+func HookWithConfig(config Config) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			return logrusMiddlewareHandler(c, next, config)
+		}
 	}
 }
 
 func Hook() echo.MiddlewareFunc {
-	return logger
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			return logrusMiddlewareHandler(c, next, Config{})
+		}
+	}
+}
+
+type bodyDumpResponseWriter struct {
+	io.Writer
+	http.ResponseWriter
+}
+
+func (w *bodyDumpResponseWriter) WriteHeader(code int) {
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *bodyDumpResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
+}
+
+func (w *bodyDumpResponseWriter) Flush() {
+	w.ResponseWriter.(http.Flusher).Flush()
+}
+
+func (w *bodyDumpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return w.ResponseWriter.(http.Hijacker).Hijack()
+}
+
+func (w *bodyDumpResponseWriter) CloseNotify() <-chan bool {
+	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
