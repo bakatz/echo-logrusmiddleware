@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
 )
@@ -104,9 +104,14 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 	start := time.Now()
 	req := c.Request()
 	res := c.Response()
+	var err error
+
+	if err = next(c); err != nil {
+		c.Error(err)
+	}
 
 	// Request
-	reqBody := []byte{}
+	var reqBody []byte
 	if config.IncludeRequestBodies {
 		if req.Body != nil { // Read
 			reqBody, _ = ioutil.ReadAll(req.Body)
@@ -122,35 +127,23 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 		res.Writer = writer
 	}
 
-	if err := next(c); err != nil {
-		c.Error(err)
-	}
-
-	p := req.URL.Path
-	if p == "" {
-		p = "/"
-	}
-
-	bytesIn := req.Header.Get(echo.HeaderContentLength)
-	if bytesIn == "" {
-		bytesIn = "0"
-	}
-
 	stop := time.Now()
 	fieldsMap := map[string]interface{}{
-		"time_rfc3339": time.Now().UTC().Format(time.RFC3339),
-		"remote_ip":    c.RealIP(),
-		"host":         req.Host,
-		"uri":          req.RequestURI,
-		"method":       req.Method,
-		"path":         p,
-		"referer":      req.Referer(),
-		"user_agent":   req.UserAgent(),
-		"status":       res.Status,
-		"latency":      strconv.FormatInt(stop.Sub(start).Nanoseconds()/1000, 10),
-		"bytes_in":     bytesIn,
-		"bytes_out":    strconv.FormatInt(res.Size, 10),
-		"request_id":   res.Header().Get(echo.HeaderXRequestID),
+		"time_rfc3339":  time.Now().UTC().Format(time.RFC3339),
+		"remote_ip":     c.RealIP(),
+		"host":          req.Host,
+		"uri":           req.RequestURI,
+		"method":        req.Method,
+		"path":          getPath(req),
+		"referer":       req.Referer(),
+		"user_agent":    req.UserAgent(),
+		"status":        res.Status,
+		"latency":       strconv.FormatInt(stop.Sub(start).Nanoseconds()/1000, 10),
+		"latency_human": stop.Sub(start).String(),
+		"bytes_in":      getBytesIn(req),
+		"bytes_out":     strconv.FormatInt(res.Size, 10),
+		"request_id":    getRequestId(req, res),
+		"error":         err,
 	}
 
 	if config.IncludeRequestBodies {
@@ -164,6 +157,30 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 	logrus.WithFields(fieldsMap).Info("Handled request")
 
 	return nil
+}
+
+func getBytesIn(req *http.Request) string {
+	bytesIn := req.Header.Get(echo.HeaderContentLength)
+	if bytesIn == "" {
+		bytesIn = "0"
+	}
+	return bytesIn
+}
+
+func getPath(req *http.Request) string {
+	p := req.URL.Path
+	if p == "" {
+		p = "/"
+	}
+	return p
+}
+
+func getRequestId(req *http.Request, res *echo.Response) string {
+	var id = req.Header.Get(echo.HeaderXRequestID)
+	if id == "" {
+		id = res.Header().Get(echo.HeaderXRequestID)
+	}
+	return id
 }
 
 func HookWithConfig(config Config) echo.MiddlewareFunc {
