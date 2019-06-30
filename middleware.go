@@ -142,7 +142,7 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 		"latency_human": stop.Sub(start).String(),
 		"bytes_in":      getBytesIn(req),
 		"bytes_out":     strconv.FormatInt(res.Size, 10),
-		"request_id":    getRequestId(req, res),
+		"request_id":    getRequestID(req, res),
 		"error":         err,
 	}
 
@@ -175,7 +175,7 @@ func getPath(req *http.Request) string {
 	return p
 }
 
-func getRequestId(req *http.Request, res *echo.Response) string {
+func getRequestID(req *http.Request, res *echo.Response) string {
 	var id = req.Header.Get(echo.HeaderXRequestID)
 	if id == "" {
 		id = res.Header().Get(echo.HeaderXRequestID)
