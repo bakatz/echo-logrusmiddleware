@@ -1,4 +1,4 @@
-module github.com/nikolay-turpitko/echo-logrusmiddleware/v2
+module github.com/bakatz/echo-logrusmiddleware/v2
 
 go 1.13
 
