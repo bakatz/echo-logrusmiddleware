@@ -151,7 +151,7 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 	}
 
 	if config.IncludeResponseBodies {
-		fieldsMap["response_body"] = resBody
+		fieldsMap["response_body"] = resBody.String()
 	}
 
 	logrus.WithFields(fieldsMap).Info("Handled request")
