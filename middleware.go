@@ -102,15 +102,9 @@ func (l Logger) Panicj(j log.JSON) {
 
 func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Config) error {
 	start := time.Now()
-	req := c.Request()
-	res := c.Response()
-	var err error
-
-	if err = next(c); err != nil {
-		c.Error(err)
-	}
 
 	// Request
+	req := c.Request()
 	var reqBody []byte
 	if config.IncludeRequestBodies {
 		if req.Body != nil { // Read
@@ -120,11 +114,17 @@ func logrusMiddlewareHandler(c echo.Context, next echo.HandlerFunc, config Confi
 	}
 
 	// Response
+	res := c.Response()
 	resBody := new(bytes.Buffer)
 	if config.IncludeResponseBodies {
 		mw := io.MultiWriter(res.Writer, resBody)
 		writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response().Writer}
 		res.Writer = writer
+	}
+
+	var err error
+	if err = next(c); err != nil {
+		c.Error(err)
 	}
 
 	stop := time.Now()
